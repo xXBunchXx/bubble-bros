@@ -1,0 +1,59 @@
+[gd_scene format=3 uid="uid://lobby001"]
+
+[ext_resource type="Script" path="res://scripts/lobby.gd" id="1_lobby"]
+
+[node name="Lobby" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_lobby")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(320, 0)
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="CenterContainer/VBoxContainer"]
+text = "BubbleBros"
+theme_override_font_sizes/font_size = 36
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/VBoxContainer"]
+
+[node name="HostButton" type="Button" parent="CenterContainer/VBoxContainer"]
+text = "Host Game"
+
+[node name="HSeparator2" type="HSeparator" parent="CenterContainer/VBoxContainer"]
+
+[node name="IPLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+text = "Join by IP:"
+
+[node name="IPInput" type="LineEdit" parent="CenterContainer/VBoxContainer"]
+placeholder_text = "192.168.x.x"
+
+[node name="JoinButton" type="Button" parent="CenterContainer/VBoxContainer"]
+text = "Join"
+
+[node name="HSeparator3" type="HSeparator" parent="CenterContainer/VBoxContainer"]
+
+[node name="SearchButton" type="Button" parent="CenterContainer/VBoxContainer"]
+text = "Search LAN for Servers"
+
+[node name="ServerList" type="ItemList" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 120)
+
+[node name="JoinSelectedButton" type="Button" parent="CenterContainer/VBoxContainer"]
+text = "Join Selected"
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[connection signal="pressed" from="CenterContainer/VBoxContainer/HostButton" to="." method="_on_host_pressed"]
+[connection signal="pressed" from="CenterContainer/VBoxContainer/JoinButton" to="." method="_on_join_pressed"]
+[connection signal="pressed" from="CenterContainer/VBoxContainer/SearchButton" to="." method="_on_search_pressed"]
+[connection signal="item_selected" from="CenterContainer/VBoxContainer/ServerList" to="." method="_on_server_list_item_selected"]
+[connection signal="pressed" from="CenterContainer/VBoxContainer/JoinSelectedButton" to="." method="_on_join_selected_pressed"]
