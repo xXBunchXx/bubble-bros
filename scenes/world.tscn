@@ -1,26 +1,21 @@
 [gd_scene format=3 uid="uid://world001"]
 
 [ext_resource type="Script" path="res://scripts/world.gd" id="1_world"]
+[ext_resource type="Script" path="res://scripts/rts_camera.gd" id="2_camera"]
+[ext_resource type="Script" path="res://scripts/selection_manager.gd" id="3_selection"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
-size = Vector3(50, 0.2, 50)
-
-[sub_resource type="BoxMesh" id="BoxMesh_1"]
-size = Vector3(50, 0.2, 50)
-
-[node name="World" type="Node3D"]
+[node name="World" type="Node2D"]
 script = ExtResource("1_world")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 10, 0)
-shadow_enabled = true
+[node name="RTSCamera" type="Camera2D" parent="."]
+zoom = Vector2(1.5, 1.5)
+script = ExtResource("2_camera")
 
-[node name="Ground" type="StaticBody3D" parent="."]
+[node name="SelectionManager" type="Node" parent="."]
+script = ExtResource("3_selection")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
-shape = SubResource("BoxShape3D_1")
+[node name="Ground" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-2000, -2000, 2000, -2000, 2000, 2000, -2000, 2000)
+color = Color(0.22, 0.38, 0.18, 1)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
-mesh = SubResource("BoxMesh_1")
-
-[node name="Players" type="Node3D" parent="."]
+[node name="Units" type="Node2D" parent="."]

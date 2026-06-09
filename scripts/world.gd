@@ -1,25 +1,30 @@
-extends Node3D
+extends Node2D
 
-const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const UNIT_SCENE := preload("res://scenes/unit.tscn")
 const BROADCAST_PORT := 7778
 const BROADCAST_INTERVAL := 1.0
 const BROADCAST_MSG := "BUBBLEBROS_SERVER"
 
-const SPAWN_POSITIONS := [
-	Vector3(0, 1, 0),
-	Vector3(3, 1, 0),
-	Vector3(-3, 1, 0),
-	Vector3(0, 1, 3),
-	Vector3(0, 1, -3),
+## Pawn each player starts with (id = filename in res://data/pawns/)
+const STARTING_PAWN := "ninja"
+
+const SPAWN_POSITIONS: Array[Vector2] = [
+	Vector2(0, 0),
+	Vector2(120, 0),
+	Vector2(-120, 0),
+	Vector2(0, 120),
+	Vector2(0, -120),
 ]
 
 var _broadcast_sockets: Array[PacketPeerUDP] = []
 var _broadcast_timer := 0.0
+var _next_unit_num := 1
 
 func _ready() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if multiplayer.is_server():
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
-		_add_player(multiplayer.get_unique_id(), _next_spawn_pos())
+		spawn_unit(STARTING_PAWN, 1, _next_spawn_pos())
 		_open_broadcast_sockets()
 	else:
 		_request_spawn.rpc_id(1)
@@ -36,45 +41,55 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
 		_close_broadcast_sockets()
 
-# ── Multiplayer spawning ────────────────────────────────────────────────────
+# ── Spawning ────────────────────────────────────────────────────────────────
+# SERVER-ONLY entry point. Spawns any pawn type for any owner and
+# replicates it to all clients. This is the one function future game
+# systems (buildings, abilities, game modes) call to create units.
+func spawn_unit(pawn_id: String, p_owner_id: int, pos: Vector2) -> void:
+	assert(multiplayer.is_server())
+	var unit_name := "u%d" % _next_unit_num
+	_next_unit_num += 1
+	_add_unit(unit_name, pawn_id, p_owner_id, pos)
+	_add_unit.rpc(unit_name, pawn_id, p_owner_id, pos)
 
+# Called on the SERVER by each joining client once their world is loaded
 @rpc("any_peer", "reliable", "call_remote")
 func _request_spawn() -> void:
 	var new_id := multiplayer.get_remote_sender_id()
-	var new_pos := _next_spawn_pos()
-	for child in $Players.get_children():
-		_add_player.rpc_id(new_id, int(child.name), child.position)
-	_add_player(new_id, new_pos)
-	_add_player.rpc(new_id, new_pos)
+	# First, replicate every existing unit to the new client
+	for child in $Units.get_children():
+		_add_unit.rpc_id(new_id, child.name, child.pawn_id, child.owner_id, child.position)
+	# Then spawn their starting unit everywhere
+	spawn_unit(STARTING_PAWN, new_id, _next_spawn_pos())
 
-@rpc("authority", "reliable", "call_local")
-func _add_player(peer_id: int, pos: Vector3) -> void:
-	if $Players.get_node_or_null(str(peer_id)):
+@rpc("authority", "reliable", "call_remote")
+func _add_unit(unit_name: String, pawn_id: String, p_owner_id: int, pos: Vector2) -> void:
+	if $Units.get_node_or_null(unit_name):
 		return
-	var player := PLAYER_SCENE.instantiate()
-	player.name = str(peer_id)
-	player.position = pos
-	$Players.add_child(player)
+	var unit := UNIT_SCENE.instantiate()
+	unit.name = unit_name
+	unit.setup(pawn_id, p_owner_id)
+	unit.position = pos
+	$Units.add_child(unit)
 
-@rpc("authority", "reliable", "call_local")
-func _remove_player(peer_id: int) -> void:
-	var player := $Players.get_node_or_null(str(peer_id))
-	if player:
-		player.queue_free()
+@rpc("authority", "reliable", "call_remote")
+func _remove_units_of(peer_id: int) -> void:
+	for child in $Units.get_children():
+		if child.owner_id == peer_id:
+			child.queue_free()
 
 func _on_peer_disconnected(peer_id: int) -> void:
-	_remove_player(peer_id)
-	_remove_player.rpc(peer_id)
+	_remove_units_of(peer_id)
+	_remove_units_of.rpc(peer_id)
 
-func _next_spawn_pos() -> Vector3:
-	return SPAWN_POSITIONS[$Players.get_child_count() % SPAWN_POSITIONS.size()]
+func _next_spawn_pos() -> Vector2:
+	return SPAWN_POSITIONS[$Units.get_child_count() % SPAWN_POSITIONS.size()]
 
 # ── LAN broadcast ───────────────────────────────────────────────────────────
 
 func _open_broadcast_sockets() -> void:
 	_close_broadcast_sockets()
 	var seen: Array[String] = []
-
 	for iface in IP.get_local_interfaces():
 		for addr: String in iface.get("addresses", []):
 			if ":" in addr or addr.begins_with("127."):
@@ -86,15 +101,11 @@ func _open_broadcast_sockets() -> void:
 			if subnet_bcast in seen:
 				continue
 			seen.append(subnet_bcast)
-
 			var sock := PacketPeerUDP.new()
-			# Bind to this interface's IP so the OS sends through the right NIC
 			sock.bind(0, addr)
 			sock.set_broadcast_enabled(true)
 			sock.set_dest_address(subnet_bcast, BROADCAST_PORT)
 			_broadcast_sockets.append(sock)
-
-	# Unicast to loopback so a second instance on the same machine can find us
 	var loopback := PacketPeerUDP.new()
 	loopback.set_dest_address("127.0.0.1", BROADCAST_PORT)
 	_broadcast_sockets.append(loopback)
